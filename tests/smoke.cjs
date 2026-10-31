@@ -1,0 +1,15 @@
+const fs=require('fs'),path=require('path'),vm=require('vm'),assert=require('assert');
+const src=fs.readFileSync(path.join(__dirname,'..','assets','app.js'),'utf8');
+let storage={};const app={innerHTML:''};const fields={};
+const dom={getElementById:(id)=>id==='app'?app:null,querySelector:(q)=>q.match(/\[name="(.+)"\]/)?({value:fields[q.match(/\[name="(.+)"\]/)[1]]||''}):null,addEventListener:()=>{},body:{classList:{toggle:()=>{}},appendChild:()=>{}},createElement:()=>({click:()=>{},remove:()=>{}})};
+const ctx={Date,Math,JSON,Array,String,Number,Object,Boolean,Set,Map,Blob,URL,console,window:{addEventListener:()=>{},scrollTo:()=>{},setTimeout:()=>{},print:()=>{}},localStorage:{getItem:k=>storage[k]||null,setItem:(k,v)=>storage[k]=v},navigator:{},location:{hash:''},document:dom,setTimeout:()=>0,clearTimeout:()=>{},confirm:()=>true};vm.createContext(ctx);
+vm.runInContext(src,ctx);assert(app.innerHTML.includes('Visão geral'));
+for(const p of ['diario','operacoes','planejamento','evolucao','sh2','pendencias','evidencias','relatorios','administracao']){vm.runInContext(`navigate('${p}')`,ctx);assert(app.innerHTML.includes('AMBIENTE DEMO'),p)}
+vm.runInContext(`navigate('evolucao');globalThis.oldP=progress()`,ctx);const old=ctx.oldP;
+fields.date='2027-03-25';fields.amount='9';fields.note='Teste sintético'; // edição de MED-004 (SIM-03)
+vm.runInContext(`editId='MED-004';submitMeasure();globalThis.newP=progress()`,ctx);assert(ctx.newP>old,'Progresso deve aumentar com medição corrigida');
+vm.runInContext(`openModal('joint','1')`,ctx);assert(app.innerHTML.includes('Posição SH2 1'));
+fields['joint-status']='soldada';vm.runInContext(`submitJoint();globalThis.j=st.joints['1']`,ctx);assert.strictEqual(ctx.j,'soldada');
+fields.author='Robson Almeida';fields.shift='Diurno';fields.operationalDate='2027-03-25';fields.at='2027-03-25T13:40';fields.title='Registro 100% fictício';fields.body='Texto de exemplo';fields.category='Operação';fields.equip='ÁREA DEMO';fields.activity='SIM-01';fields.action='Acompanhar';
+vm.runInContext(`editId='';submitEvent();globalThis.n=st.events.length`,ctx);assert.strictEqual(ctx.n,4);vm.runInContext(`globalThis.lastAuthor=st.events.at(-1).author;globalThis.lastShift=st.events.at(-1).shift`,ctx);assert.strictEqual(ctx.lastAuthor,'Robson Almeida');assert.strictEqual(ctx.lastShift,'Diurno');
+fields['report-operator']='Pedro Dantas';vm.runInContext(`st.reportDate='2027-03-25';st.reportShift='Diurno';actionRouter('save-report-operator',{});globalThis.allocated=reportResponsible();globalThis.reportHtml=reportContent()`,ctx);assert.strictEqual(ctx.allocated,'Pedro Dantas');assert(ctx.reportHtml.includes('Pedro Dantas'));assert(ctx.reportHtml.includes('Robson Almeida'));vm.runInContext(`st.reportShift='Noturno';globalThis.other=reportResponsible();st.reportShift='Diurno'`,ctx);assert.strictEqual(ctx.other,'','Escala de outro turno não deve ser presumida');assert(storage['gv3901_demo_local_v010']);console.log('OK — 10 módulos, atualização de medição, SH2, autoria e responsabilidade por relatório independentes por dia/turno.');
